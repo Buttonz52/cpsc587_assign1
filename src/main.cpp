@@ -121,7 +121,7 @@ void windowMouseButtonFunc(GLFWwindow *window, int button, int action,
 void windowMouseMotionFunc(GLFWwindow *window, double x, double y);
 void windowKeyFunc(GLFWwindow *window, int key, int scancode, int action,
                    int mods);
-void animateQuad(float t);
+void animateBead(float t);
 void moveCamera();
 void reloadMVPUniform();
 void reloadColorUniform(float r, float g, float b);
@@ -161,11 +161,11 @@ void displayFunc() {
   
 }
 
-void animateQuad(float t) {
+void animateBead(float t) {
   M = RotateAboutYMatrix(100 * t);
 
-  float s = (std::sin(t) + 1.f) / 2.f;
-  float x = (1 - s) * (10) + s * (-10);
+  //float s = (sin(t) + 1.f) / 2.f;
+  float x = (1 - t) * (10) + t * (-10);
 
   M = TranslateMatrix(x, 0, 0) * M;
 
@@ -181,15 +181,11 @@ void loadQuadGeometryToGPU() {
   //verts.push_back(Vec3f(-1, 1, 0));
   //verts.push_back(Vec3f(1, -1, 0));
   //verts.push_back(Vec3f(1, 1, 0));
-  getSpherePoints(1, Vec3f(0,0,0));
-
-
-
-	cout << sphere.size() << endl;
+  getSpherePoints(0.3, Vec3f(0,0,0));
 
   glBindBuffer(GL_ARRAY_BUFFER, vertBufferID);
   glBufferData(GL_ARRAY_BUFFER,
-               sizeof(Vec3f) * 4, // byte size of Vec3f, 4 of them
+               sizeof(Vec3f) * sphere.size(), // byte size of Vec3f, 4 of them
                sphere.data(),      // pointer (Vec3f*) to contents of verts
                GL_STATIC_DRAW);   // Usage pattern of GPU buffer
 }
@@ -281,7 +277,7 @@ void loadLineGeometryToGPU() {
   glBindBuffer(GL_ARRAY_BUFFER, line_vertBufferID);
   glBufferData(GL_ARRAY_BUFFER,
                sizeof(Vec3f) * curve.size(), // byte size of Vec3f, 4 of them
-               curve.data(),      // pointer (Vec3f*) to contents of verts
+               &curve[0],      // pointer (Vec3f*) to contents of verts
                GL_STATIC_DRAW);   // Usage pattern of GPU buffer
 }
 
@@ -335,6 +331,21 @@ Vec3f calcPoint(Vec3f a, Vec3f b, Vec3f c, Vec3f d, float t)
 Vec3f lerp(Vec3f a, Vec3f b, float t)
 {
     return (a + (b-a)*t);
+}
+
+float calcCurveLength() 
+{
+    float l = 0.0;
+    float currStep = 0.0;
+    Vec3f currPoint = curve[0];
+
+    for(int i = 1; i <= curve.size(); i++)
+    {
+        l += length(currPoint - curve[i]);
+        currPoint = curve[i];
+    }
+
+    return l;
 }
 
 void setupVAO() {
@@ -504,7 +515,7 @@ int main(int argc, char **argv) {
 
     if (g_play) {
       t += dt;
-      animateQuad(t);
+      animateBead(t);
     }
 
     displayFunc();
