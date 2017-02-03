@@ -32,12 +32,16 @@
 #include <GLFW/glfw3.h>
 
 #include "ShaderTools.h"
-#include "Vec3f.h"
-#include "Vec3f_FileIO.h"
-#include "Mat4f.h"
 #include "OpenGLMatrixTools.h"
 #include "Camera.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 using namespace std;
+using namespace glm;
 //==================== GLOBAL VARIABLES ====================//
 /*	Put here for simplicity. Feel free to restructure into
 *	appropriate classes or abstractions.
@@ -49,28 +53,28 @@ GLuint basicProgramID;
 // Data needed for Quad
 GLuint vaoID;
 GLuint vertBufferID;
-Mat4f M;
+mat4 M;
 
 // Data needed for Line 
 GLuint line_vaoID;
 GLuint line_vertBufferID;
-Mat4f line_M;
+mat4 line_M;
 
 //Curve DS
-vector<Vec3f> curve;
-vector<Vec3f> sphere;
-vector<Vec3f> textureCoords;
+vector<vec3> curve;
+vector<vec3> sphere;
+vector<vec2> textureCoords;
 
 //globals
 float PI =  atan(1.0)*4.0;
 
 // Only one camera so only one veiw and perspective matrix are needed.
-Mat4f V;
-Mat4f P;
+mat4 V;
+mat4 P;
 
 // Only one thing is rendered at a time, so only need one MVP
 // When drawing different objects, update M and MVP = M * V * P
-Mat4f MVP;
+mat4 MVP;
 
 // Camera and veiwing Stuff
 Camera camera;
@@ -94,6 +98,7 @@ float WIN_NEAR = 0.01;
 float WIN_FAR = 1000;
 
 //==================== FUNCTION DECLARATIONS ====================//
+void print4x4Matrix(mat4 mat);
 void displayFunc();
 void resizeFunc();
 void init();
@@ -102,10 +107,10 @@ void deleteIDs();
 void setupVAO();
 void loadQuadGeometryToGPU();
 float toRadians(float degree);
-void getSpherePoints(float radius, Vec3f center);
+void getSpherePoints(float radius, vec3 center);
 void loadCurve();
-Vec3f calcPoint(Vec3f a, Vec3f b, Vec3f c, Vec3f d, float t);
-Vec3f lerp(Vec3f a, Vec3f b, float t);
+vec3 calcPoint(vec3 a, vec3 b, vec3 c, vec3 d, float t);
+vec3 lerp(vec3 a, vec3 b, float t);
 void reloadProjectionMatrix();
 void loadModelViewMatrix();
 void setupModelViewProjectionTransform();
@@ -130,8 +135,22 @@ int main(int, char **);
 
 //==================== FUNCTION DEFINITIONS ====================//
 
+void print4x4Matrix(mat4 mat)
+{
+	for(int i = 0; i < 4; i++)
+	{
+		for(int j = 0; j < 4; j++)
+		{
+			cout << mat[i][j] << " ";
+		}
+		cout << "" << endl;
+	}
+	printf("\n");
+}
+
 void displayFunc() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glClearColor(0.3, 0.3, 0.3, 1.0);
 
   // Use our shader
   glUseProgram(basicProgramID);
@@ -162,12 +181,12 @@ void displayFunc() {
 }
 
 void animateBead(float t) {
-  M = RotateAboutYMatrix(100 * t);
+  //M = RotateAboutYMatrix(100 * t);
 
   //float s = (sin(t) + 1.f) / 2.f;
   float x = (1 - t) * (10) + t * (-10);
 
-  M = TranslateMatrix(x, 0, 0) * M;
+  //M = TranslateMatrix(x, 0, 0) * M;
 
   setupModelViewProjectionTransform();
   reloadMVPUniform();
@@ -176,16 +195,16 @@ void animateBead(float t) {
 void loadQuadGeometryToGPU() {
   // Just basic layout of floats, for a quad
   // 3 floats per vertex, 4 vertices
-  std::vector<Vec3f> verts;
+  //std::vector<vec3> verts;
   //verts.push_back(Vec3f(-1, -1, 0));
   //verts.push_back(Vec3f(-1, 1, 0));
   //verts.push_back(Vec3f(1, -1, 0));
   //verts.push_back(Vec3f(1, 1, 0));
-  getSpherePoints(0.3, Vec3f(0,0,0));
+  getSpherePoints(0.3, vec3(0,0,0));
 
   glBindBuffer(GL_ARRAY_BUFFER, vertBufferID);
   glBufferData(GL_ARRAY_BUFFER,
-               sizeof(Vec3f) * sphere.size(), // byte size of Vec3f, 4 of them
+               sizeof(vec3) * sphere.size(), // byte size of Vec3f, 4 of them
                sphere.data(),      // pointer (Vec3f*) to contents of verts
                GL_STATIC_DRAW);   // Usage pattern of GPU buffer
 }
@@ -195,9 +214,9 @@ float toRadians(float degree)
 	return (degree * PI) / 180.0;
 }
 
-void getSpherePoints(float radius, Vec3f center)
+void getSpherePoints(float radius, vec3 center)
 {
-	float x1,x2,x3,x4,y1,y2,y3,y4,z1,z2,z3,z4,u,v;
+	float x1,x2,x3,x4,y1,y2,y3,y4,z1,z2,z3,z4;
 	int d = 5;	
 	int layers 		= 180/d;
 	int loop_layer 	= 0;
@@ -211,41 +230,41 @@ void getSpherePoints(float radius, Vec3f center)
 	{
 		for(int i = 0.0; i <= 360.0; i = i + d)
 		{			
-				x1 = (radius * cos(toRadians(i)) * sin(toRadians(j))) + center.x();
-				y1 = (radius * cos(toRadians(j))) + center.y();
-				z1 = (radius * sin(toRadians(i)) * sin(toRadians(j))) + center.z();				
+				x1 = (radius * cos(toRadians(i)) * sin(toRadians(j))) + center.x;
+				y1 = (radius * cos(toRadians(j))) + center.y;
+				z1 = (radius * sin(toRadians(i)) * sin(toRadians(j))) + center.z;				
 								
-				x2 = (radius * cos(toRadians(i)) * sin(toRadians(j+d))) + center.x();
-				y2 = (radius * cos(toRadians(j+d))) + center.y();
-				z2 = (radius * sin(toRadians(i)) * sin(toRadians(j+d))) + center.z();				
+				x2 = (radius * cos(toRadians(i)) * sin(toRadians(j+d))) + center.x;
+				y2 = (radius * cos(toRadians(j+d))) + center.y;
+				z2 = (radius * sin(toRadians(i)) * sin(toRadians(j+d))) + center.z;				
 				
-				x3 = (radius * cos(toRadians(i+d)) * sin(toRadians(j+d))) + center.x();
-				y3 = (radius * cos(toRadians(j+d))) + center.y();
-				z3 = (radius * sin(toRadians(i+d)) * sin(toRadians(j+d))) + center.z();
+				x3 = (radius * cos(toRadians(i+d)) * sin(toRadians(j+d))) + center.x;
+				y3 = (radius * cos(toRadians(j+d))) + center.y;
+				z3 = (radius * sin(toRadians(i+d)) * sin(toRadians(j+d))) + center.z;
 				
-				sphere.push_back(Vec3f(x1,y1,z1));
-				sphere.push_back(Vec3f(x2,y2,z2));
-				sphere.push_back(Vec3f(x3,y3,z3));
+				sphere.push_back(vec3(x1,y1,z1));
+				sphere.push_back(vec3(x2,y2,z2));
+				sphere.push_back(vec3(x3,y3,z3));
 				
-				textureCoords.push_back(Vec3f(u1,v1));				//1
-				textureCoords.push_back(Vec3f(u1,v1-(2*inc)));		//2
-				textureCoords.push_back(Vec3f(u1-inc,v1-(2*inc)));	//3
+				textureCoords.push_back(vec2(u1,v1));				//1
+				textureCoords.push_back(vec2(u1,v1-(2*inc)));		//2
+				textureCoords.push_back(vec2(u1-inc,v1-(2*inc)));	//3
 				
 				//cout << x1 << " " << y1 << " " << z1 << endl;
 				
 				if((loop_layer != 0) && (loop_layer != layers))
 				{
-					x4 = (radius * cos(toRadians(i+d)) * sin(toRadians(j))) + center.x();
-					y4 = (radius * cos(toRadians(j))) + center.y();
-					z4 = (radius * sin(toRadians(i+d)) * sin(toRadians(j))) + center.z();
+					x4 = (radius * cos(toRadians(i+d)) * sin(toRadians(j))) + center.x;
+					y4 = (radius * cos(toRadians(j))) + center.y;
+					z4 = (radius * sin(toRadians(i+d)) * sin(toRadians(j))) + center.z;
 					
-					sphere.push_back(Vec3f(x1,y1,z1));
-					sphere.push_back(Vec3f(x3,y3,z3));
-					sphere.push_back(Vec3f(x4,y4,z4));
+					sphere.push_back(vec3(x1,y1,z1));
+					sphere.push_back(vec3(x3,y3,z3));
+					sphere.push_back(vec3(x4,y4,z4));
 						
-					textureCoords.push_back(Vec3f(u1,v1));				//1
-					textureCoords.push_back(Vec3f(u1-inc,v1-(2*inc)));	//3
-					textureCoords.push_back(Vec3f(u1-inc,v1));			//4
+					textureCoords.push_back(vec2(u1,v1));				//1
+					textureCoords.push_back(vec2(u1-inc,v1-(2*inc)));	//3
+					textureCoords.push_back(vec2(u1-inc,v1));			//4
 					
 				}
 				u1 -= inc; 
@@ -260,23 +279,23 @@ void loadLineGeometryToGPU() {
   // Just basic layout of floats, for a quad
   // 3 floats per vertex, 4 vertices
 
-  curve.push_back(Vec3f(0, 0, 0));
-  curve.push_back(Vec3f(5, 5, 0));
-  curve.push_back(Vec3f(5, 5, 5));
-  curve.push_back(Vec3f(0, 0, 5));
-  curve.push_back(Vec3f(-5, 5, 5));	
-  curve.push_back(Vec3f(-5, 5, 0));	
-  curve.push_back(Vec3f(0, 0, 0));				
+  curve.push_back(vec3(0, 0, 0));
+  curve.push_back(vec3(5, 5, 0));
+  curve.push_back(vec3(5, 5, 5));
+  curve.push_back(vec3(0, 0, 5));
+  curve.push_back(vec3(-5, 5, 5));	
+  curve.push_back(vec3(-5, 5, 0));	
+  curve.push_back(vec3(0, 0, 0));				
 
   loadCurve();
 
   cout << curve.size() << endl;
-  for(int i = 0; i < curve.size(); i++)
+  for(unsigned int i = 0; i < curve.size(); i++)
 	//cout << curve[i] << endl;
 
   glBindBuffer(GL_ARRAY_BUFFER, line_vertBufferID);
   glBufferData(GL_ARRAY_BUFFER,
-               sizeof(Vec3f) * curve.size(), // byte size of Vec3f, 4 of them
+               sizeof(vec3) * curve.size(), // byte size of Vec3f, 4 of them
                &curve[0],      // pointer (Vec3f*) to contents of verts
                GL_STATIC_DRAW);   // Usage pattern of GPU buffer
 }
@@ -287,10 +306,10 @@ void loadCurve()
 	if((curve.size() - 1) % 3  != 0)
 		cout << "vertex list is not 3n-1 in size.";
 		
-	Vec3f p0, p1, p2, p3;
+	vec3 p0, p1, p2, p3;
 	int numSegments = (curve.size()-1)/3;
 	int numLines = 100;
-	vector<Vec3f> tmp;
+	vector<vec3> tmp;
 	
 
 	cout << numSegments << endl;
@@ -309,7 +328,7 @@ void loadCurve()
 		
 		for(int j = 0; j < 2*numLines/numSegments; j++)
 		{
-			Vec3f point = calcPoint(p0,p1,p2,p3,t);			
+			vec3 point = calcPoint(p0,p1,p2,p3,t);			
 			tmp.push_back(point);
 			t += 0.01;
 		}	
@@ -317,9 +336,9 @@ void loadCurve()
 	curve = tmp;
 }
 
-Vec3f calcPoint(Vec3f a, Vec3f b, Vec3f c, Vec3f d, float t)
+vec3 calcPoint(vec3 a, vec3 b, vec3 c, vec3 d, float t)
 {
-	Vec3f ab,bc,cd,abbc,bccd;
+	vec3 ab,bc,cd,abbc,bccd;
 	ab = lerp(a,b,t);
 	bc = lerp(b,c,t);
 	cd = lerp(c,d,t);
@@ -328,7 +347,7 @@ Vec3f calcPoint(Vec3f a, Vec3f b, Vec3f c, Vec3f d, float t)
 	return lerp(abbc,bccd,t);
 }
 
-Vec3f lerp(Vec3f a, Vec3f b, float t)
+vec3 lerp(vec3 a, vec3 b, float t)
 {
     return (a + (b-a)*t);
 }
@@ -336,10 +355,9 @@ Vec3f lerp(Vec3f a, Vec3f b, float t)
 float calcCurveLength() 
 {
     float l = 0.0;
-    float currStep = 0.0;
-    Vec3f currPoint = curve[0];
+    vec3 currPoint = curve[0];
 
-    for(int i = 1; i <= curve.size(); i++)
+    for(unsigned int i = 1; i <= curve.size(); i++)
     {
         l += length(currPoint - curve[i]);
         currPoint = curve[i];
@@ -384,7 +402,7 @@ void reloadProjectionMatrix() {
   // near Z plane > 0
   // far Z plane
 
-  P = PerspectiveProjection(WIN_FOV, // FOV
+  P = perspective(WIN_FOV, // FOV
                             static_cast<float>(WIN_WIDTH) /
                                 WIN_HEIGHT, // Aspect
                             WIN_NEAR,       // near plane
@@ -392,8 +410,8 @@ void reloadProjectionMatrix() {
 }
 
 void loadModelViewMatrix() {
-  M = IdentityMatrix();
-  line_M = IdentityMatrix();
+  M = mat4(1);
+  line_M = mat4(1);
   // view doesn't change, but if it did you would use this
   V = camera.lookatMatrix();
 }
@@ -411,7 +429,7 @@ void reloadMVPUniform() {
   glUniformMatrix4fv(id,        // ID
                      1,         // only 1 matrix
                      GL_TRUE,   // transpose matrix, Mat4f is row major
-                     MVP.data() // pointer to data in Mat4f
+                     &MVP[0][0] // pointer to data in Mat4f
                      );
 }
 
@@ -425,8 +443,8 @@ void reloadColorUniform(float r, float g, float b) {
 
 void generateIDs() {
   // shader ID from OpenGL
-  std::string vsSource = loadShaderStringfromFile("./shaders/basic_vs.glsl");
-  std::string fsSource = loadShaderStringfromFile("./shaders/basic_fs.glsl");
+  string vsSource = loadShaderStringfromFile("./shaders/basic_vs.glsl");
+  string fsSource = loadShaderStringfromFile("./shaders/basic_fs.glsl");
   basicProgramID = CreateShaderProgram(vsSource, fsSource);
 
   // VAO and buffer IDs given from OpenGL
@@ -449,7 +467,7 @@ void init() {
   glEnable(GL_DEPTH_TEST);
   glPointSize(50);
 
-  camera = Camera(Vec3f{0, 0, 5}, Vec3f{0, 0, -1}, Vec3f{0, 1, 0});
+  camera = Camera(vec3(0, 0, 5), vec3(0, 0, -1), vec3(0, 1, 0));
 
   // SETUP SHADERS, BUFFERS, VAOs
 
@@ -643,16 +661,16 @@ void windowKeyFunc(GLFWwindow *window, int key, int scancode, int action,
 //==================== OPENGL HELPER FUNCTIONS ====================//
 
 void moveCamera() {
-  Vec3f dir;
+  vec3 dir;
 
   if (g_moveBackForward) {
-    dir += Vec3f(0, 0, g_moveBackForward * g_panningSpeed);
+    dir += vec3(0, 0, g_moveBackForward * g_panningSpeed);
   }
   if (g_moveLeftRight) {
-    dir += Vec3f(g_moveLeftRight * g_panningSpeed, 0, 0);
+    dir += vec3(g_moveLeftRight * g_panningSpeed, 0, 0);
   }
   if (g_moveUpDown) {
-    dir += Vec3f(0, g_moveUpDown * g_panningSpeed, 0);
+    dir += vec3(0, g_moveUpDown * g_panningSpeed, 0);
   }
 
   if (g_rotateUpDown) {
